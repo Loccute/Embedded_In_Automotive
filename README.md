@@ -102,8 +102,100 @@ Thư viện này bao gồm các hàm, cấu trúc dữ liệu và macro của c�
 - Gồm 3 bước cơ bản: cấp clock cho ngoại vi --> cấu hình ngoại vi --> sử dụng ngoại vi
 - Ta sử dụng thư viện SPL là 1 thư viện chuẩn của STM32 cung cấp các hàm và các định nghĩa giúp việc cấu hình và sử dụng ngoại vi dễ dàng và rõ ràng.
 #### 2.1 Cấp clock cho ngoại vi:
+Ta dựa vào sơ đồ khối dưới đây để xác định đường bus phù hợp để cấp clock cho ngoại vi tương ứng: ![image](https://github.com/user-attachments/assets/a95e5397-0f2f-4043-b6ab-59422440586c)
+Module RCC (Reset and Clock Control) cung cấp các hàm để cấu hình xung clock.
+```c
+RCC_APB1PeriphClockCmd(uint32_t RCC_APB1Periph, FunctionalState NewState)
 
- 
+RCC_APB2PeriphClockCmd(uint32_t RCC_APB2Periph, FunctionalState NewState)
+	
+RCC_AHBPeriphClockCmd(uint32_t RCC_AHBPeriph, FunctionalState NewState)
+```
+- Các hàm này nhận 2 tham số: 
+  + `RCC_APB1Periph`, `RCC_APB2Periph`, `RCC_AHBPeriph` là các ngoại vi muốn cấp clock. (Ví dụ
+: RCC_APB2Periph_GPIOA, RCC_APB1Periph_CAN1,..)
+  + `NewState` là giá trị quy định cấp (ENABLE) hay ngưng (DISABLE) xung clock cho ngoại vi đó.
+#### 2.2 Cấu hình GPIO:
+- Ta cấu hình các tham số cho GPIO được tổ chức trong struct GPIO_InitTypeDef:
+  + `GPIO_Pin`: chọn chân muốn cấu hình,
+  + `GPIO_Mode`: chọn chế độ của chân,
+  + `GPIO_Speed`: chọn tốc độ chân.
+- Có 8 chế độ của chân:
+
+|Chế độ GPIO|Tên gọi|Mô tả|
+|:----------|:------|:----|
+|`GPIO_Mode_AIN`|**Analog Input**|Chân GPIO được cấu hình làm đầu vào analog. Thường được sử dụng cho các chức năng như ADC (Analog to Digital Converter).|
+|`GPIO_Mode_IN_FLOATING`|**Floating Input**|Chân GPIO được cấu hình làm đầu vào và ở trạng thái nổi (không pull-up hay pull-down), nghĩa là chân không được kết nối cố định với mức cao (VDD) hoặc mức thấp (GND) thông qua điện trở.|
+|`GPIO_Mode_IPD`|**Input Pull-Down**|Chân GPIO được cấu hình làm đầu vào với một điện trở pull-down nội bộ kích hoạt. Khi không có tín hiệu nào được áp dụng lên chân này, nó sẽ được kéo về mức thấp (GND).|
+|`GPIO_Mode_IPU`|**Input Pull-Up**|Chân GPIO được cấu hình làm đầu vào với một điện trở pull-up nội bộ kích hoạt. Khi không có tín hiệu nào được áp dụng lên chân này, nó sẽ được kéo về mức cao (VDD).|
+|`GPIO_Mode_Out_OD`|**Output Open-Drain**|Chân GPIO được cấu hình làm đầu ra với chế độ open-drain. Trong chế độ này, chân có thể được kéo xuống mức thấp, nhưng để đạt được mức cao, cần một điện trở pull-up ngoài hoặc từ một nguồn khác.|
+|`GPIO_Mode_Out_PP`|**Output Push-Pull**|Chân GPIO được cấu hình làm đầu ra với chế độ push-pull. Trong chế độ này, chân có thể đạt được cả mức cao và mức thấp mà không cần bất kỳ phần cứng bổ sung nào.|
+|`GPIO_Mode_AF_OD`|**Alternate Function Open-Drain**|Chân GPIO được cấu hình để hoạt động trong một chức năng thay thế (như USART, I2C,...) và sử dụng chế độ open-drain.|
+|`GPIO_Mode_AF_PP`|**Alternate Function Push-Pull**|Chân GPIO được cấu hình để hoạt động trong một chức năng thay thế và sử dụng chế độ push-pull.|
+  
+- Có 3 mức tốc độ cho chân: GPIO_Speed_10MHz, GPIO_Speed_2MHz, GPIO_Speed_50MHz (Tốc độ nhanh nhất).
+- Dùng hàm **GPIO_Init (GPIO_TypeDef, GPIO_InitStruct)** để khởi tạo GPIO:
+  + `GPIO_TypeDef`: GPIO cần cấu hình
+  + `GPIO_InitStruct`: Con trỏ trỏ tới biến TypeDef (Struct) vừa được khởi tạo
+
+#### 2.3 Sử dụng ngoại vi:
+Ta có 1 số hàm thông dụng để sử dụng ngoại vi
+
+```c
+uint8_t GPIO_ReadInputDataBit(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
+\\Đọc giá trị 1 chân trong GPIO được cấu hình là INPUT
+uint16_t GPIO_ReadInputData(GPIO_TypeDef* GPIOx);
+\\Đọc giá trị nguyên GPIO được cấu hình là INPUT
+uint8_t GPIO_ReadOutputDataBit(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
+\\Đọc giá trị 1 chân trong GPIO được cấu hình là OUTPUT
+uint16_t GPIO_ReadOutputData(GPIO_TypeDef* GPIOx);
+\\Đọc giá trị nguyên GPIO được cấu hình là OUTPUT
+void GPIO_SetBits(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
+\\Cho giá trị điện áp của 1 chân trong GPIO = 1
+void GPIO_ResetBits(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
+\\Cho giá trị điện áp của 1 chân trong GPIO = 0
+void GPIO_WriteBit(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, BitAction BitVal);
+\\Ghi giá trị "BitVal" vào 1 chân trong GPIO
+void GPIO_Write(GPIO_TypeDef* GPIOx, uint16_t PortVal);
+\\Ghi giá trị "PortVal" vào nguyên GPIO
+
+```
+
+**Ví dụ 1**: Blink LED PC13
+```c
+while(1){
+	GPIO_SetBits(GPIOC, GPIO_Pin_13); // Ghi 1 ra PC13
+	delay(10000000);
+	GPIO_ResetBits(GPIOC, GPIO_Pin_13);// Ghi 0 ra PC13
+	delay(10000000);
+}
+```
+**Ví dụ 2**: Đọc trạng thái nút nhấn:
+```c
+// Cấu hình
+void GPIO_Init(){
+	GPIO_InitTypeDef GPIO_InitStruct;
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_0;
+	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
+	GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+		
+	GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+// Điều khiển
+void Control(){
+	if(GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_0) == 0){
+		while(GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_0) == 0);
+		if(GPIO_ReadOutputDataBit(GPIOC, GPIO_Pin_13)){
+			GPIO_ResetBits(GPIOC, GPIO_Pin_13);
+		} else {
+			GPIO_SetBits(GPIOC, GPIO_Pin_13);
+		}
+	}
+
+}
+
+```
 
  </details>
 
