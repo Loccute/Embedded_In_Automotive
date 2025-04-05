@@ -7,12 +7,85 @@
 ### 1. KeilC:
 - Phần mềm được phát triển bởi công ti ARM.
 - Tạo môi trường tạo ra để lập trình các ngôn ngữ C và Assembly. Có thể biên dịch các chương  
-- giúp biên dịch chương trình C/Assembly thành mã máy (.hex file) để máy tính có thể hiểu được và nạp vào các vi điều khiển.
+- Giúp biên dịch chương trình C/Assembly thành mã máy (.hex file) để máy tính có thể hiểu được và nạp vào các vi điều khiển.
 
 ### 2. Tạo project đầu tiên với KeilC
 - Cần các thiết bị: STM32, ST-Link Driver
 - Cài đặt thư viện chuẩn cho STM32, Tải Datasheet, Reference Manual.
 - Các bước tạo project mới trên KeilC, thêm file và thư viện cần thiết. Các thao tác cơ bản trên KeilC (Build, Nạp, Debug Code,...).
+
+### 3. Ví dụ Blink LED PC13
+- Các bước thực hiện:
+  + Cấp xung clock cho ngoại vi.
+  + Cấu hình chân của ngoại vi.
+  + Sử dụng ngoại vi.
+- Tổng hợp địa chỉ các thanh ghi: ![image](https://github.com/user-attachments/assets/38423912-9bcc-4e0a-ab46-d0b449fa028f)
+- B1: cấu hình thanh ghi RCC_APB2ENR để cấp clock cho ngoại vi:
+  ![image](https://github.com/user-attachments/assets/ad4001c4-77c5-471e-9919-f072c1a13ad6)
+
+  ```c
+  #define RCC_APB2ENR	*((unsigned int *)0x40021018)
+  RCC_APB2ENR |= (1 << 4); // Kich hoat xung clock cap cho GPIOC
+  ```
+- B2: Cấu hình chế độ chân PC13: Ta dặt chế độ là output push-pull có điện trở kéo lên
+  ![image](https://github.com/user-attachments/assets/0517277f-a495-44c5-bcdd-ebea2092fc17)
+
+  ```c
+  #define GPIOC_CRH	*((unsigned int *)0x40011004)
+  // MODE13[1:0] = 11: Output mode, max speed 50 MHz	
+  GPIOC_CRH |= (1 << 20) | (1 << 21);
+
+  // CNF13[1:0] = 00: General purpose output push-pull
+  GPIOC_CRH &= ~((1 << 22) | (1 << 23));
+  ```
+- B3: Sử dụng ngoại vi: Ta lần lượt ghi điện áp ở chân PC13 là 1, 0 xen kẽ nhau sau khi delay 1 khoảng thời gian để blink led PC13. Ta sẽ thao tác ghi mức điện áp trên thanh ghi ODR.
+  ```c
+  #define GPIOC_ODR *((unsigned int*)0x4001100C)
+  while(1){
+	GPIOC_ODR |= 1 << 13; // LED tắt
+	delay(10000000);
+	GPIOC_ODR &= ~(1 << 13); // LED sáng
+	delay(10000000);
+  }
+  ```
+  Ta sử dụng vòng lặp để tạo hàm delay
+  ```c
+  void delay(unsigned int timedelay){ 
+	for(unsigned int i = 0; i < timedelay; i++){}
+  }
+  ```
+- Ngoài ra, ta còn có thể xây dựng 1 cấu trúc thanh ghi của các ngoại vi để làm việc với ác ngoại vi được thuận tiện hơn:
+  ```c
+  typedef struct
+  {
+    unsigned int CRL;
+    unsigned int CRH;
+    unsigned int IDR;
+    unsigned int ODR;
+    unsigned int BSRR;
+    unsigned int BRR;
+    unsigned int LCKR;
+  } GPIO_TypeDef;
+
+  typedef struct
+  {
+    unsigned int CR;
+    unsigned int CFGR;
+    unsigned int CIR;
+    unsigned int APB2RSTR;
+    unsigned int APB1RSTR;
+    unsigned int AHBENR;
+    unsigned int APB2ENR;
+    unsigned int APB1ENR;
+    unsigned int BDCR;
+    unsigned int CSR;
+  } RCC_TypeDef;
+  ```
+### 4. Tổng kết và mở rộng:
+- Code trên thanh ghi giúp ltv hiểu rõ cách hoạt động chi tiết của từng ngoại vi, tăng hiệu xuất chương trình.
+- Nhưng lập trình thanh ghi có thể trở nên khá phức tạp đối với các hệ thống lớn.
+- Nên sử dụng thư viện chuẩn của STM32 với các API có sẵn và dễ tiếp cận.
+
 </details>
 
 
@@ -20,6 +93,15 @@
 	<summary><strong>BÀI 2: GPIO</strong></summary>
   
 ## BÀI 2: GPIO
+### 1. Thư viện STM32F10x Standard Peripherals Firmware Library
+Là 1 thư viện hoàn chỉnh được phát triển cho dòng STM32. Bao gồm đầy đủ driver cho tất cả các ngoại vi tiêu chuẩn.
+
+Thư viện này bao gồm các hàm, cấu trúc dữ liệu và macro của các tính năng thiết bị ngoại vi STM32. 
+
+### 2. Cấu hình và sử dụng ngoại vi (GPIO)
+- Gồm 3 bước cơ bản: cấp clock cho ngoại vi --> cấu hình ngoại vi --> sử dụng ngoại vi
+- Ta sử dụng thư viện SPL là 1 thư viện chuẩn của STM32 cung cấp các hàm và các định nghĩa giúp việc cấu hình và sử dụng ngoại vi dễ dàng và rõ ràng.
+#### 2.1 Cấp clock cho ngoại vi:
 
  
 
