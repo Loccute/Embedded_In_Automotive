@@ -265,3 +265,20 @@ void delay_ms(uint32_t time){
 ``` 
 
  </details>
+
+
+ <details>
+	<summary><strong>BÀI 4: CÁC CHUẨN GIAO TIẾP CƠ BẢN</strong></summary>
+
+## Bài 4: Các chuẩn giao tiếp cơ bản
+### 1. Sơ lược về vấn đề truyển nhận dữ liệu:
+- Truyền nhận dữ liệu trong vi điều khiển (MCU) là quá trình trao đổi tín hiệu điện áp giữa các chân (pin) của MCU.
+- Do đó khi MCU A muốn truyền dữ liệu cho 1 MCU B, 
+
+### 2. SPI
+
+
+### 3. UART
+### 4. I2C
+
+  </details>
