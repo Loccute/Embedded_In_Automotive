@@ -315,7 +315,7 @@ void delay_ms(uint32_t time){
 ### 3. UART
 - UART (Universal Asynchronous Receiver-Transmitter) là một giao thức truyền thông phần cứng dùng giao tiếp nối tiếp không đồng bộ và có thể cấu hình được tốc độ.
 - Là chuẩn giao tiếp nối tiếp, chỉ có 2 thiết bị giao tiếp với nhau.
-- Sử dụng 2 dây giao tiếp là Tx (Truyền) và Rx (Nhận).
+- Sử dụng 2 dây giao tiếp là **Tx** (Truyền) và **Rx** (Nhận).
 ![image](https://github.com/user-attachments/assets/573b9eb6-2253-48f5-b9d5-9303a77aa063)
 
 - Tốc độ truyền: được đặt ở 1 số chuẩn, gọi là Baudrate = Số bit truyền / 1s, đồng bộ giữa Slave và Master (Ví dụ: 9600, 19200,38400,... Các tốc độ khác nhau tùy thuộc vào ứng dụng hệ thống sử dụng).
@@ -332,16 +332,44 @@ void delay_ms(uint32_t time){
 
 ![image](https://github.com/user-attachments/assets/a682257e-88f0-4604-889a-8524a3210be5)
 
-- Ưu điểm và nhược điểm:
-  + Ưu điểm:
+- **Ưu điểm và nhược điểm**:
+  + **Ưu điểm**:
     * Đơn giản phổ biến.
     * Tốc độ có thể điều chỉnh linh hoạt.
     * Tiết kiệm phần cứng (chỉ dùng 2 dây để giao tiếp).
-  + Nhược điểm:
+  + **Nhược điểm**:
     * Tốc độ truyền thấp hơn so với SPI.
     * Chỉ hỗ trợ giao tiếp đơn Master, đơn Slave.
     * Chỉ kiểm tra được số lẻ bit lỗi.
 
 ### 4. I2C
+- Là chuẩn giao tiếp đồng bộ, nối tiếp (dữ liệu truyền từng bit theo 1 đường SDA duy nhất).
+- Hoạt động ở chế độ bán song công (half duplex) vì tại 1 thời điểm chỉ có thể nhận hoặc truyền dữ liệu.
+- Một Master có thể giao tiếp với nhiều Slave hoặc nhiều Master giao tiếp với 1 Slave.
+- Sử dụng 2 dây để giao tiếp:
+  + **SCL** (Serial Clock): Tín hiệu xung nhịp đồng bộ giữa Master và Slave được Master tạo ra.
+  + **SDA** (Serial Data): Đường truyền và nhận dữ liệu giữa Master và Slave.
+
+- Các bước truyền/nhận dữ liệu: dữ liệu trong I2C được truyền trong các tin nhắn được chia thành các khung dữ liệu như hình dưới đây:
+![image](https://github.com/user-attachments/assets/aa2aa8e9-901d-48b8-8ac9-90ca890b5152)
+
+  + **B1**: Master gửi điều kiện khởi động (Start) là chân SDA xuống mức 0 trước chân SCL.
+  + **B2**: Master gửi 7 hoặc 10 bit địa chỉ để tìm Slave mà nó muốn giao tiếp.
+  + **B3**: Bit R/W được gửi đi nếu bằng '0' khi Master muốn gửi dữ liệu đến Slave, '1' nếu muốn đọc dữ liệu từ Slave.
+  + **B4**: Nếu địa chỉ được gửi đi trùng với địa chỉ của 1 Slave nào đó thì Slave đó sẽ gửi ACK (bit '0'), nếu không có Slave nào nhận thì sẽ giữ nguyên NACK (bit '1').
+  + **B5**: Sau khi chọn được Slave để giao tiếp, Master sẽ đọc/gửi dữ liệu lần lượt một khung 8 bit từ/đến Slave, sau mỗi khung sẽ có một bit ACK được Slave phản hồi về cho Master (nếu ghi dữ liệu), hoặc Master gửi cho Slave (khi đọc dữ liệu) để xác nhận đã gửi/nhận thành công hay không.
+  + **B6**: Gửi điều khiện Stop để kết thúc truyền nhận dữ liệu: chân SDA lên mức 1 trước chân SCL (Lưu ý: khi nhận được tín hiệu NACK thì bất cứ lúc nào cũng có thể nhảy đến bước 6 để kết thúc truyền nhận dữ liệu).
+![image](https://github.com/user-attachments/assets/8bc49ba9-daf8-41f3-b4bb-5d08d5ffdbab)
+
+- **Lưu ý khi dùng nhiều Master giao tiếp với 1 Slave**: có thể xảy ra sự cố khi 2 hay nhiều Master cùng gửi/nhận dữ liệu cùng lúc qua đường SDA. Lúc đó cần phát hiện xem đường SDA cao hay thấp trước khi truyền tin nhắn. Nếu SDA cao thì có thể truyền tin nhắn an toàn, ngược lại thì có 1 Master khác đang có quyền điều khiển bus nên các Master còn lại phải chờ.
+
+- **Ưu điểm và nhược điểm**:
+  + **Ưu điểm**:
+    * Tiết kiệm phần cứng (2 dây).
+    * Hỗ trợ giao tiếp với nhiều Slave hoặc nhiều Master.
+  + **Nhược điểm**:
+    * Tốc độ truyền thấp.
+    * Quản lý địa chỉ phức tạp.
+    * Khoảng cách truyền ngắn.
 
   </details>
