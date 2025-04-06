@@ -273,10 +273,42 @@ void delay_ms(uint32_t time){
 ## Bài 4: Các chuẩn giao tiếp cơ bản
 ### 1. Sơ lược về vấn đề truyển nhận dữ liệu:
 - Truyền nhận dữ liệu trong vi điều khiển (MCU) là quá trình trao đổi tín hiệu điện áp giữa các chân (pin) của MCU.
-- Do đó khi MCU A muốn truyền dữ liệu cho 1 MCU B, 
+- Do đó khi MCU A muốn truyền dữ liệu cho 1 MCU B, dữ liệu sẽ được đổi thành các tín hiệu điện áp tương ứng trên các chân mà 2 MCU giao tiếp.
+![image](https://github.com/user-attachments/assets/d3fd3596-88b3-4c8b-b55a-f2934eb0b8ba)
 
 ### 2. SPI
+- SPI (Serial Peripheral Interface) hay còn gọi là giao diện ngoại vi nối tiếp, được phát triển bởi hãng Motorola.
+- Hoạt động ở chế độ song công toàn phần, có thể truyền và nhận ở cùng 1 thời điểm.
+- Là giao tiếp đồng bộ nối tiếp, quá trình truyền nhận đều được đồng bộ với xung clock sinh bởi Master.
+- Một Master có thể giao tiếp được nhiều Slave.
+- Sử dụng 4 dây để giao tiếp:
+  + **SCK** (Serial clock): xung clock tạo bởi Master cung cấp cho slave.
+  + **MISO** (Master in - Slave out): Tín hiệu tạo bởi thiết bị Slave và nhận bởi thiết bị Master.
+  + **MOSI** (Master out - Slave in): Tín hiệu tạo bởi thiết bị Master và nhận bởi thiết bị Slave.
+  + **SS** (Slave Select) / **CS** (Chip Select): Chọn thiết bị slave cụ thể để giao tiếp. Để chọn slave giao tiếp với Master cần chủ động kéo đường SS tương ứng xuống mức thấp (0/low)
+![image](https://github.com/user-attachments/assets/7a0c5de3-4c3d-44be-8560-d2882bdbeaf7)
 
+- Quá trình truyền dữ liệu:
+  + Master kéo chân CS của slave muốn truyền xuongs 0 để báo hiệu bắt đầu truyền nhận.
+  + Master sẽ cung cấp xung clock. Với mối xung clock, 1 bit sẽ được truyền bởi Master và 1 bit sẽ được truyền bởi slave.
+  + Các thanh ghi cập nhật lại giá trị và dịch trái 1 bit.
+  + Lặp lại quá trình trên cho đến khi truyền đủ 8 bit trong thanh ghi.
+![image](https://github.com/user-attachments/assets/f12b6222-9b6d-49fa-bb04-81ebbf8b719d)
+
+- Có tất cả 4 chế độ hoạt động phụ thuộc vào 2 tham số CPOL (Clock Polarity) và CPHA (Clock Phase).
+  + CPOL: bằng 0 --> Xung clock ban đầu ở mức 0, bằng 1 --> Xung clock ban đầu ở mức 1.
+  + CPHA: bằng 0 --> Đọc dữ liệu ở cạnh thứ nhất, truyền dữ liệu ở cạnh thứ 2; bằng 1 --> Đọc dữ liệu ở cạnh thứ hai, truyền dữ liệu ở cạnh thứ nhất.
+
+| SPI Mode | CPOL | CPHA | Hoạt động|
+| :---: | :---: | :---: | :---: |
+| 1 | 0 | 0 | xung nhịp ở mức thấp và dữ liệu được lấy mẫu khi cạnh lên (mặc định) |
+| 2 | 0 | 1 | xung nhịp ở mức thấp và dữ liệu được lấy mẫu khi cạnh xuống |
+| 3 | 1 | 0 | xung nhịp ở mức cao và dữ liệu được lấy mẫu khi cạnh lên |
+| 4 | 1 | 1 | xung nhịp ở mức cao và dữ liệu được lấy mẫu khi cạnh xuống |
+
+- Ưu điểm và nhược điểm:
+  + Ưu điểm: cho phép truyền dữ liệu với tốc độ rất nhanh, thường đạt được tốc độ Mbps hoặc thậm chí hàng chục Mbps; quá trình truyền ít bị lỗi do đồng bộ xung clock giữa Master và Slave; Có thể giao tiếp với nhiều Slave cùng lúc và giao tiếp song công (truyền nhận đồng thời).
+  + Nhược điểm: Cần nhiều kết nối dây (4 dây), tốn tài nguyên phần cứng khi muốn giao tiếp với nhiều slave; Khoảng cách truyền ngắn.
 
 ### 3. UART
 ### 4. I2C
