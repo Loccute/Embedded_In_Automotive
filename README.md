@@ -306,9 +306,11 @@ void delay_ms(uint32_t time){
 | 3 | 1 | 0 | xung nhịp ở mức cao và dữ liệu được lấy mẫu khi cạnh lên |
 | 4 | 1 | 1 | xung nhịp ở mức cao và dữ liệu được lấy mẫu khi cạnh xuống |
 
+![image](https://github.com/user-attachments/assets/e677dc34-4e27-41f9-ad10-27c2ec02f73c)
+
 - Ưu điểm và nhược điểm:
-  + Ưu điểm: cho phép truyền dữ liệu với tốc độ rất nhanh, thường đạt được tốc độ Mbps hoặc thậm chí hàng chục Mbps; quá trình truyền ít bị lỗi do đồng bộ xung clock giữa Master và Slave; Có thể giao tiếp với nhiều Slave cùng lúc và giao tiếp song công (truyền nhận đồng thời).
-  + Nhược điểm: Cần nhiều kết nối dây (4 dây), tốn tài nguyên phần cứng khi muốn giao tiếp với nhiều slave; Khoảng cách truyền ngắn.
+  + **Ưu điểm**: cho phép truyền dữ liệu với tốc độ rất nhanh, thường đạt được tốc độ Mbps hoặc thậm chí hàng chục Mbps; quá trình truyền ít bị lỗi do đồng bộ xung clock giữa Master và Slave; Có thể giao tiếp với nhiều Slave cùng lúc và giao tiếp song công (truyền nhận đồng thời).
+  + **Nhược điểm**: Cần nhiều kết nối dây (4 dây), tốn tài nguyên phần cứng khi muốn giao tiếp với nhiều slave; Khoảng cách truyền ngắn.
 
 ### 3. UART
 ### 4. I2C
