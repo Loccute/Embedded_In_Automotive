@@ -313,6 +313,35 @@ void delay_ms(uint32_t time){
   + **Nhược điểm**: Cần nhiều kết nối dây (4 dây), tốn tài nguyên phần cứng khi muốn giao tiếp với nhiều slave; Khoảng cách truyền ngắn.
 
 ### 3. UART
+- UART (Universal Asynchronous Receiver-Transmitter) là một giao thức truyền thông phần cứng dùng giao tiếp nối tiếp không đồng bộ và có thể cấu hình được tốc độ.
+- Là chuẩn giao tiếp nối tiếp, chỉ có 2 thiết bị giao tiếp với nhau.
+- Sử dụng 2 dây giao tiếp là Tx (Truyền) và Rx (Nhận).
+![image](https://github.com/user-attachments/assets/573b9eb6-2253-48f5-b9d5-9303a77aa063)
+
+- Tốc độ truyền: được đặt ở 1 số chuẩn, gọi là Baudrate = Số bit truyền / 1s, đồng bộ giữa Slave và Master (Ví dụ: 9600, 19200,38400,... Các tốc độ khác nhau tùy thuộc vào ứng dụng hệ thống sử dụng).
+- Có 3 chế độ truyền:
+  + Simplex: Chỉ tiến hành giao tiếp một chiều.
+  + Half duplex: Dữ liệu sẽ đi theo một hướng tại 1 thời điểm.
+  + Full duplex: Thực hiện giao tiếp đồng thời đến và đi từ mỗi master và slave.
+- Quá trình truyền nhận dữ liệu: Dữ liệu được truyền sẽ đóng thành các gói (packet), bao gồm
+  + Start: 1 bit bắt đâu.
+  + Bit dữ liệu: 5 - 9 bit.
+  + Parity Bit (Bit chẵn lẽ): để kiểm tra lỗi bit khi truyền, gồm 2 quy luật
+    * Quy luật chẵn: Thêm một bit '0' hoặc '1' để số bit '1' là số chẵn.
+    * Quy luật lẻ: Thêm một bit '0' hoặc '1' để số bit '1' là số lẻ.
+
+![image](https://github.com/user-attachments/assets/a682257e-88f0-4604-889a-8524a3210be5)
+
+- Ưu điểm và nhược điểm:
+  + Ưu điểm:
+    * Đơn giản phổ biến.
+    * Tốc độ có thể điều chỉnh linh hoạt.
+    * Tiết kiệm phần cứng (chỉ dùng 2 dây để giao tiếp).
+  + Nhược điểm:
+    * Tốc độ truyền thấp hơn so với SPI.
+    * Chỉ hỗ trợ giao tiếp đơn Master, đơn Slave.
+    * Chỉ kiểm tra được số lẻ bit lỗi.
+
 ### 4. I2C
 
   </details>
