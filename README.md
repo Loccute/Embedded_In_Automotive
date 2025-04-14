@@ -373,3 +373,150 @@ void delay_ms(uint32_t time){
     * Khoảng cách truyền ngắn.
 
   </details>
+
+ <details>
+	<summary><strong>BÀI 5: GIAO TIẾP SPI</strong></summary>
+
+## Bài 5: Giao tiếp SPI
+### 1. SPI Software:
+- Là 1 cách thức mô phỏng hoạt động của giao thức truyền thông SPI sử dụng GPIO của vi điều khiển.
+- Các bước cấu hình mô phỏng:
+  + B1: Xác định các chân GPIO.
+  + B2: Cấu hình GPIO.
+  + B3: Khởi tạo các chân cho SPI
+
+#### a. Xác định các chân GPIO:
+Giao tiếp SPI có 4 chân cơ bản:
+- SCK: Xung clock đồng bộ được tạo bởi Master để đồng bộ tín hiệu truyền nhận dữ liệu giữa Master và Slave.
+- MOSI (Master out Slave in): Tín hiệu để Master truyền dữ liệu cho Slave.
+- MISO (Master in Slave out): nhận dữ liệu từ Slave truyền cho Master.
+- CS (Chip select): Chọn thiết bị Slave cụ thể để giao tiếp. Để chọn Slave để giao tiếp, Master chủ động kéo đường dây tín hiệu xuống mức 0.
+- Ta định nghĩa các chân trên ứng với các GPIO sau: 
+```c
+#define SPI_SCK_Pin GPIO_Pin_0
+#define SPI_MISO_Pin GPIO_Pin_1
+#define SPI_MOSI_Pin GPIO_Pin_2
+#define SPI_CS_Pin GPIO_Pin_3
+#define SPI_GPIO GPIOA
+#define SPI_RCC RCC_APB2Periph_GPIOA
+```
+
+#### b. Cấu hình GPIO:
+Cấp xung cho các GPIO và TIM2 để tạo hàm delay:
+```c
+void RCC_Config(){
+	RCC_APB2PeriphClockCmd(SPI_RCC, ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+}
+```
+
+Đối với Master:
+```c
+void GPIO_Config(){
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Pin = SPI_SCK_Pin | SPI_MOSI_Pin | SPI_CS_Pin;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(SPI_GPIO, &GPIO_InitStructure);
+	
+	GPIO_InitStructure.GPIO_Pin = SPI_MISO_Pin;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(SPI_GPIO, &GPIO_InitStructure);
+}
+
+```
+Đối với Slave
+```c
+
+void GPIO_Config(){
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Pin = SPI_SCK_Pin | SPI_MOSI_Pin | SPI_CS_Pin;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(SPI_GPIO, &GPIO_InitStructure);
+	
+	GPIO_InitStructure.GPIO_Pin = SPI_MISO_Pin;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(SPI_GPIO, &GPIO_InitStructure);
+}
+```
+
+Tạo xung clock:
+```c
+void Clock(){
+	GPIO_WriteBit(SPI_GPIO, SPI_SCK_Pin, Bit_SET);
+	delay_ms(4);
+	GPIO_WriteBit(SPI_GPIO, SPI_SCK_Pin, Bit_RESET);
+	delay_ms(4);
+}
+```
+#### c. Khởi tạo các chân cho SPI:
+```c
+void SPI_Init(){
+	GPIO_WriteBit(SPI_GPIO, SPI_SCK_Pin, Bit_RESET);
+	GPIO_WriteBit(SPI_GPIO, SPI_CS_Pin, Bit_SET);
+	GPIO_WriteBit(SPI_GPIO, SPI_MISO_Pin, Bit_RESET);
+	GPIO_WriteBit(SPI_GPIO, SPI_MOSI_Pin, Bit_RESET);
+}
+```
+
+#### d. Hàm truyền và nhận dữ liệu:
+- Hàm truyền: truyền lần lượt 8 bit trong byte dữ liệu, quá trình truyền như sau:
+  + Kéo CS xuống 0:
+    * Truyền 1 bit.
+    * Dịch 1 bit.
+    * Gửi clock().
+  + Kéo CS lên 1.
+```c
+void SPI_Master_Transmit(uint8_t u8Data){	//0b10010000
+	uint8_t u8Mask = 0x80;	// 0b10000000
+	uint8_t tempData;
+	GPIO_WriteBit(SPI_GPIO, SPI_CS_Pin, Bit_RESET);
+	delay_ms(1);
+	for(int i = 0; i < 8; i++){
+		tempData = u8Data & u8Mask;
+		if(tempData){
+			GPIO_WriteBit(SPI_GPIO, SPI_MOSI_Pin, Bit_SET);
+			delay_ms(1);
+		} else{
+			GPIO_WriteBit(SPI_GPIO, SPI_MOSI_Pin, Bit_RESET);
+			delay_ms(1);
+		}
+		u8Data = u8Data << 1;
+		Clock();
+	}
+	GPIO_WriteBit(SPI_GPIO, SPI_CS_Pin, Bit_SET);
+	delay_ms(1);
+}
+```
+
+
+
+- Hàm nhận:
+```c
+uint8_t SPI_Slave_Receive(void){
+	uint8_t dataReceive = 0x00;	//0b0000 0000
+	uint8_t temp = 0x00;
+	while(GPIO_ReadInputDataBit(SPI_GPIO, SPI_CS_Pin));
+	while(!GPIO_ReadInputDataBit(SPI_GPIO, SPI_SCK_Pin));
+	for(int i = 0; i < 8; i++){ 
+		if(GPIO_ReadInputDataBit(SPI_GPIO, SPI_SCK_Pin)){
+			while (GPIO_ReadInputDataBit(SPI_GPIO, SPI_SCK_Pin)){
+				temp = GPIO_ReadInputDataBit(SPI_GPIO, SPI_MOSI_Pin);
+			}
+			dataReceive <<= 1;
+			dataReceive |= temp;
+    		}
+		while(!GPIO_ReadInputDataBit(SPI_GPIO, SPI_SCK_Pin));
+	}
+	while(!GPIO_ReadInputDataBit(SPI_GPIO, SPI_CS_Pin));
+	return dataReceive;
+}
+```
+### 2. SPI Hardware:
+
+
+
+  </details>
