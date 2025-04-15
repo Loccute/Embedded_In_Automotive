@@ -607,7 +607,9 @@ void SPI_Config(){
   + SPI_I2S_FLAG_TXE: Cờ báo truyền, cờ này sẽ set lên 1 khi truyền xong data trong buffer.
   + SPI_I2S_FLAG_RXNE: Cờ báo nhận, cờ này set lên 1 khi nhận xong data.
   + SPI_I2S_FLAG_BSY: Cờ báo bận,set lên 1 khi SPI đang bận truyền nhận.
-Các hàm truyền nhận có thể viết nhứ sau:
+
+Các hàm truyền nhận có thể viết như sau:
+
 **Lưu ý**: Vì cấu hình NSS soft nên khi truyền, ta phải chủ động kéo SS xuống Low bằng phần mềm:
 
 - Hàm truyền:
