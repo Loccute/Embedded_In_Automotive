@@ -494,7 +494,14 @@ void SPI_Master_Transmit(uint8_t u8Data){	//0b10010000
 
 
 
-- Hàm nhận:
+- Hàm nhận: Nhận 8 bit dữ liệu theo các bước sau:
+  + Kiểm tra CS == 0 để nhận biết bắt đầu quá trình giao tiếp.
+    * Kiểm tra clock == 1 để bắt đầu nhận dữ liệu.
+    * Đọc Data trên chân MOSI, đồng thời lưu lại vào 1 biến.
+    * Dịch sang trái 1 bit.
+    * Chờ cho clock == 1 lần nữa, lặp lại các bước trên.
+  + Kiểm tra CS == 1 để kết thúc quá trình giao tiếp.
+
 ```c
 uint8_t SPI_Slave_Receive(void){
 	uint8_t dataReceive = 0x00;	//0b0000 0000
@@ -516,7 +523,115 @@ uint8_t SPI_Slave_Receive(void){
 }
 ```
 ### 2. SPI Hardware:
+Trên mỗi vi điều khiển đều tích hợp modun giao tiếp SPI, được điều khiển bởi các thanh ghi, phần cứng GPIO khác nhau gọi là SPI cứng. STM32F1 có 2 khối SPI được tích hợp là SPI1 ở APB2 và SPI2 ở PAB1. Các khối này đều được xây dựng các kết nối, driver và các hàm riêng trong bộ thư viện chuẩn.
+#### 1. Cấu hình GPIO cho SPI
+STM32F1 đã cấu hình sẵn các chân phục vụ cho giao tiếp SPI, ta chỉ cần định nghĩa đúng với chức năng của chúng. Ở đây ta sử dụng SPI1, định nghĩa như sau:
+```c
+#define SPI1_NSS 	GPIO_Pin_4
+#define SPI1_SCK	GPIO_Pin_5
+#define SPI1_MISO 	GPIO_Pin_6
+#define SPI1_MOSI 	GPIO_Pin_7
+#define SPI1_GPIO 	GPIOA
+```
 
+Cấu hình GPIO:
+```c
+void GPIO_Cofig(){
+	GPIO_InitTypeDef GPIO_InitStructure;
+	
+	GPIO_InitStructure.GPIO_Pin = SPI1_NSS| SPI1_SCK| SPI1_MISO| SPI1_MOSI; // Tất cả các chân cần cấu hình
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP; // Ta thiết lập chế độ Alternate Function Push-Pull (cấu hình các chân hoạt động trong 1 chức năng thay thế vầ sử dụng chế độ push-pull).
+	GPIO_Init(SPI1_GPIO, &GPIO_InitStructure);
+}
+```
 
+#### 2. Cấu hình SPI
+Tương tự các ngoại vi khác, các tham số SPI được cấu hình trong struct SPI_InitTypedef:
+- `SPI_Mode`: Quy định chế độ hoạt động của thiết bị SPI. 
+- `SPI_Direction`: Quy định kiểu truyền của thiết bị.
+- `SPI_BaudRatePrescaler`: Hệ số chia clock cấp cho Module SPI.
+- `SPI_CPOL`: Cấu hình cực tính của SCK . Có 2 chế độ:
+  + `SPI_CPOL_Low`: Cực tính mức 0 khi SCK không truyền xung.
+  + `SPI_CPOL_High`: Cực tính mức 1 khi SCK không truyền xung.
+- `SPI_CPHA`: Cấu hình chế độ hoạt động của SCK. Có 2 chế độ:
+  + `SPI_CPHA_1Edge`: Tín hiệu truyền đi ở cạnh xung đầu tiên.
+  + `SPI_CPHA_2Edge`: Tín hiệu truyền đi ở cạnh xung thứ hai.
+- `SPI_DataSize`: Cấu hình số bit truyền. 8 hoặc 16 bit.
+- `SPI_FirstBit`: Cấu hình chiều truyền của các bit là MSB hay LSB.
+- `SPI_CRCPolynomial`: Cấu hình số bit CheckSum cho SPI.
+- `SPI_NSS`: Cấu hình chân SS là điều khiển bằng thiết bị hay phần mềm.
+
+Hàm cấu hình tham số SPI:
+
+- Cấu hình Master:
+```c
+void SPI_Config(){
+	SPI_InitTypeDef SPI_InitStructure;
+	SPI_InitStructure.SPI_Mode = SPI_Mode_Master; // Cấu hình cho Master
+	SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex; // Chế độ xong công
+	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; // chia tầng số 72Mhz/16
+	SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low; // Cực tính mức 0 khi SCK không truyền xung
+	SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge; // Tín hiệu truyền ở cạnh xung đầu tiên
+	SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b; // Kích thước Data = 8 bit
+	SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_LSB; // Truyền Data từ trái qua phải
+	SPI_InitStructure.SPI_CRCPolynomial = 7; // 7 bit checksum
+	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; // Điều khiển chân CS bằng phần mềm.
+	
+	SPI_Init(SPI1, &SPI_InitStructure);
+	SPI_Cmd(SPI1, ENABLE);
+}
+```
+- Cấu hình Slave:
+```c
+void SPI_Config(){
+	SPI_InitTypeDef SPI_InitStructure;
+	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; // chia tầng số 72Mhz/16
+	SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge; // Tín hiệu truyền ở cạnh xung thứ 2 để tránh xung đột vì Master truyền ở cạnh xung đầu tiên.
+	SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low; // Cực tính mức 0 khi SCK không truyền xung
+	SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b; // Nhận 8 bit
+	SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex; // Song công
+	SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB; // Truyền Data từ phải qua trái
+	SPI_InitStructure.SPI_Mode = SPI_Mode_Slave; // Cấu hình Slave
+	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; // Điều khiển chân CS bằng phần mềm.
+	
+	SPI_Init(SPI1, &SPI_InitStructure);
+	SPI_Cmd(SPI1, ENABLE);
+}
+```
+
+#### 3. Các hàm thông dụng và Hàm truyền nhận:
+- Hàm SPI_I2S_SendData(SPI_TypeDef* SPIx, uint16_t Data), tùy vào cấu hình datasize là 8 hay 16 bit sẽ truyền đi 8 hoặc 16 bit dữ liệu. Hàm nhận 2 tham số là bộ SPI sử dụng và data cần truyền.
+- Hàm SPI_I2S_ReceiveData(SPI_TypeDef* SPIx) trả về giá trị đọc được trên SPIx. Hàm trả về 8 hoặc 16 bit data.
+- Hàm SPI_I2S_GetFlagStatus(SPI_TypeDef* SPIx, uint16_t SPI_I2S_FLAG) trả về giá trị 1 cờ trong thanh ghi của SPI. Các cờ thường được dùng:
+  + SPI_I2S_FLAG_TXE: Cờ báo truyền, cờ này sẽ set lên 1 khi truyền xong data trong buffer.
+  + SPI_I2S_FLAG_RXNE: Cờ báo nhận, cờ này set lên 1 khi nhận xong data.
+  + SPI_I2S_FLAG_BSY: Cờ báo bận,set lên 1 khi SPI đang bận truyền nhận.
+Các hàm truyền nhận có thể viết nhứ sau:
+**Lưu ý**: Vì cấu hình NSS soft nên khi truyền, ta phải chủ động kéo SS xuống Low bằng phần mềm:
+
+- Hàm truyền:
+```c
+void SPI_Send1Byte(uint8_t data){
+    GPIO_WriteBit(SPI1_GPIO, SPI1_NSS, Bit_RESET); // Kéo chân CS xuống 0, bắt đầu quá trình truyền
+   
+    SPI_I2S_SendData(SPI1, data); // Truyền data thông qua bộ SPI1
+    while(SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE)==0); // Chờ đến khi Data trong buffer truyền xong, cờ SPI_I2S_FLAG_TXE sẽ bằng 1
+   
+    GPIO_WriteBit(SPI1_GPIO, SPI1_NSS, Bit_SET); // Kéo chân CS lên 1, kết thúc quá trình truyền
+}
+```
+
+- Hàm nhận:
+```c
+uint8_t SPI_Receive1Byte(void){
+    uint8_t temp;
+    while(SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_BSY)==1);  // Chờ đến khi bộ SPI1 rảnh, khi cờ SPI_I2S_FLAG_BSY bằng 0
+    temp = (uint8_t)SPI_I2S_ReceiveData(SPI1); // Tiến hành đọc data nhận được từ bộ SPI1 và lưu vào biến temp
+    while(SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE)==0); // Chờ đến khi nhận xong data, khi đó cờ SPI_I2S_FLAG_RXNE = 1.
+    return temp; // trả về data nhận được.
+}
+
+```
 
   </details>
