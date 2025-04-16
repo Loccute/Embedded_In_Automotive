@@ -637,3 +637,83 @@ uint8_t SPI_Receive1Byte(void){
 ```
 
   </details>
+
+ <details>
+	<summary><strong>BÀI 6: GIAO TIẾP I2C</strong></summary>
+
+## Bài 6: Giao tiếp I2C
+### 1. I2C Software
+#### a. Cấu hình GPIO cho I2C
+Giao tiếp I2C sử dụng 2 chân truyền dữ liệu giữa các thiết bị:
+- SDA: đường tín hiệu dữ liệu để truyền và nhận dữ liệu cho Master và Slave
+- SCL: Đường tín hiệu mang xung nhịp clock để đồng bộ giữa Master và Slave
+
+Giao thức I2C giao tiếp bán song công với khả năng giao tiếp nhiều Master và nhiều Slave.
+![image](https://github.com/user-attachments/assets/0597b56f-2f90-4e51-994b-a57df2d5f389)
+
+Định nghĩa và cấu hình các GPIO:
+```c
+// Định nghĩa các chân giao tiếp
+#define I2C_SCL 	GPIO_Pin_6
+#define I2C_SDA		GPIO_Pin_7
+#define I2C_GPIO 	GPIOB
+
+// Hàm cấp xung hoạt động cho timer và GPIO
+void RCC_Config(){
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+}
+
+// Hàm cấu hình GPIO
+void GPIO_Config(){
+	GPIO_InitTypeDef GPIO_InitStructure;
+	
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_OD;
+	GPIO_InitStructure.GPIO_Pin = I2C_SDA| I2C_SCL;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	
+	GPIO_Init(I2C_GPIO, &GPIO_InitStructure);
+
+```
+#### b. Cấu hình I2C
+![image](https://github.com/user-attachments/assets/db322a52-3f6c-4cd1-b4b1-dcc8dbddb303)
+
+- Hàm khởi tạo I2C: các chân SDA và SCL đều được thiết lập ở mức cao
+```c
+void I2C_Config(){
+	WRITE_SDA_1;
+	delay_us(1);
+	WRITE_SCL_1;
+	delay_us(1);
+}
+
+```
+
+- Các Macro được thiết lập sẵn cho việc điều khiển mức điện áp và đọc tín hiệu trên các chân SDA và SCL:
+```c
+#define WRITE_SDA_0 	GPIO_ResetBits(I2C_GPIO, I2C_SDA)
+#define WRITE_SDA_1 	GPIO_SetBits(I2C_GPIO, I2C_SDA)
+#define WRITE_SCL_0 	GPIO_ResetBits(I2C_GPIO, I2C_SCL)
+#define WRITE_SCL_1 	GPIO_SetBits(I2C_GPIO, I2C_SCL)
+#define READ_SDA_VAL 	GPIO_ReadInputDataBit(I2C_GPIO, I2C_SDA)
+```
+
+- Tín hiệu Start: SDA kéo xuống mức 0 trước SCL 1 khoảng delay nhỏ
+```c
+void I2C_Start(){
+	
+	WRITE_SCL_1;  	
+	delay_us(3);	
+	WRITE_SDA_1;
+	delay_us(3);
+	WRITE_SDA_0;	//SDA reset to 0 before SCL.
+	delay_us(3);
+	WRITE_SCL_0;
+	delay_us(3);
+}
+
+```
+
+#### c. Hàm truyền và hàm nhận
+### 2. I2C Hardware
