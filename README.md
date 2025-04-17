@@ -714,6 +714,219 @@ void I2C_Start(){
 }
 
 ```
+- Tín hiệu Stop: SCL kéo lên trước SDA 1 khoảng delay nhỏ
+```c
+void I2C_Stop(){
+	
+	WRITE_SDA_0;
+	delay_us(3);
+	WRITE_SCL_1; 	//SCL set to 1 before SDA.
+	delay_us(3);
+	WRITE_SDA_1;
+	delay_us(3);
+}
+
+```
 
 #### c. Hàm truyền và hàm nhận
+- Qúa trình truyền nhận dữ liệu: Master truyền lần lượt 7/10 bit địa chỉ + 1 bit R/W trên đường SDA để chỉ định địa chỉ slave cần giao tiếp, đồng thời nhận lại ACK từ Slave xác nhận tồn tại Slave giao tiếp. Sau đó Master mới tổ chức truyền từng 8 bit dữ liệu đến cho Slave, đồng thời nhận lại phản hồi ACK tương ứng từ Slave.
+
+- Hàm truyền: truyền lần lượt 8 bitr trong byte dữ liệu:
+  + Truyền 1 bit.
+  + Tạo 1 clock.
+  + Dịch 1 bit.
+  
+  Chờ nhận ACK ở xung thứ 9.
+```c
+status I2C_Write(uint8_t u8Data){	
+	uint8_t i;
+	status stRet;
+	for(int i=0; i< 8; i++){	//Write byte data.
+		if (u8Data & 0x80) {
+			WRITE_SDA_1;
+		} else {
+			WRITE_SDA_0;
+		}
+		delay_us(3);
+		WRITE_SCL_1;
+		delay_us(5);
+		WRITE_SCL_0;
+		delay_us(2);
+		u8Data <<= 1;
+	}
+	WRITE_SDA_1;					
+	delay_us(3);
+	WRITE_SCL_1;		
+	delay_us(3);
+	
+	if (READ_SDA_VAL) {	
+		stRet = NOT_OK;				
+	} else {
+		stRet = OK;					
+	}
+	delay_us(2);
+	WRITE_SCL_0;
+	delay_us(5);
+	
+	return stRet;
+}
+```
+
+- Hàm nhận: Nhận lần lượt 8 bit dữ liệu trên đường SDA
+  + Kéo SDA lên 1 để đọc dữ liệu:
+    * Đọc Data trên SDA, ghi vào biến.
+    * Dịch 1 bit.
+  + Gửi 1 bit ACK phản hồi về cho Master ở xung thứ 9.
+```c
+uint8_t I2C_Read(ACK_Bit _ACK){	
+	uint8_t i;						
+	uint8_t u8Ret = 0x00;
+	WRITE_SDA_1;
+	delay_us(3);	
+	for (i = 0; i < 8; ++i) {
+		u8Ret <<= 1;
+		WRITE_SCL_1;
+		delay_us(3);
+		if (READ_SDA_VAL) {
+			u8Ret |= 0x01;
+		}
+		delay_us(2);
+		WRITE_SCL_0;
+		delay_us(5);
+	}
+	if (_ACK) {	
+		WRITE_SDA_0;
+	} else {
+		WRITE_SDA_1;
+	}
+	delay_us(3);
+	
+	WRITE_SCL_1;
+	delay_us(5);
+	WRITE_SCL_0;
+	delay_us(5);
+	return u8Ret;
+}
+```
+
 ### 2. I2C Hardware
+STM32F1 có 2 khối I2C: I2C1 và I2C2 ở APB1.
+#### a. Cấu hình GPIO cho I2C
+Ta sử dụng bộ I2C1, là bộ I2C được cấu hình sẵn, ta cần định nghĩa các chân:
+```c
+#define I2C_SCL 	GPIO_Pin_6
+#define I2C_SDA		GPIO_Pin_7
+
+#define I2C1_GPIO 	GPIOB
+```
+- SDA: Input/Output
+- SCL: Output
+- Vì có trở kéo lên nên hoạt động ở chế độ OD
+
+![image](https://github.com/user-attachments/assets/fdf40952-085b-4b67-884d-6c840f1588b6)
+
+Cấu hình GPIO:
+```c
+void GPIO_Config(void) {
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7; 
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_OD;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOB, &GPIO_InitStructure);
+}
+```
+
+#### b. Cấu hình I2C
+
+Tương tự các ngoại vi khác, I2C cũng được cấu hình bằng Struct I2C_InitTypeDef:
+
+- `I2C_Mode`: Cấu hình chế độ hoạt động cho I2C
+  + `I2C_Mode_I2C`: Chế độ I2C FM (Fast Mode).
+  + `I2C_Mode_SMBusDevice` & `I2C_SMBusHost`: Chế độ SM (Slow Mode).
+- `I2C_ClockSpeed`: Cấu hình clock cho I2C, tối đa 100khz với SM và 400khz ở FM.
+- `I2C_DutyCycle`: Cấu hình chu kì nhiệm vụ của xung:
+  + `I2C_DutyCycle_2`: Thời gian xung thấp/ xung cao =2;
+  + `I2C_DutyCycle_16_9`: Thời gian xung thấp/ xung cao =16/9;
+- `I2C_OwnAddress1`: Cấu hình địa chỉ slave.
+- `I2C_Ack`: Cấu hình ACK, có sử dụng ACK hay không.
+- `I2C_AcknowledgedAddress`: Cấu hình số bit địa chỉ. 7 hoặc 10 bit.
+
+Cấu hình I2C:
+```c
+void I2C_Config()
+{
+	
+	I2C_InitTypeDef I2C_InitStructure;
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE); // Cấp clock cho I2C1
+	I2C_InitStructure.I2C_ClockSpeed = 400000; // Cấu hình clock 400 kHz
+	I2C_InitStructure.I2C_Mode = I2C_Mode_I2C; // Chế độ Fast Mode
+	I2C_InitStructure.I2C_DutyCycle = I2C_DutyCycle_2; // Tỷ lệ xung thấp/xung cao = 2
+	I2C_InitStructure.I2C_OwnAddress1 = 0x33; // Địa chỉ Slave
+	I2C_InitStructure.I2C_Ack = I2C_Ack_Enable; // Sử dụng ACK
+	I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit; // Sử dụng 7 bit địa chỉ
+
+	I2C_Init(I2C1, &I2C_InitStructure);
+	I2C_Cmd(I2C1, ENABLE);
+}
+```
+
+#### c. Các hàm thông dụng
+- Hàm I2C_Send7bitAddress(I2C_TypeDef* I2Cx, uint8_t Address, uint8_t I2C_Direction), gửi đi 7 bit address để xác định slave cần giao tiếp. Hướng truyền được xác định bởi I2C_Direction để thêm bit RW.
+- Hàm I2C_SendData(I2C_TypeDef* I2Cx, uint8_t Data) gửi đi 8 bit data.
+- Hàm I2C_ReceiveData(I2C_TypeDef* I2Cx) trả về 8 bit data.
+- Hàm I2C_CheckEvent(I2C_TypeDef* I2Cx, uint32_t I2C_EVENT) trả về kết quả kiểm tra I2C_EVENT tương ứng:
+- Hàm I2C_CheckEvent(I2C_TypeDef* I2Cx, uint32_t I2C_EVENT) trả về kết quả kiểm tra I2C_EVENT tương ứng:
+  + I2C_EVENT_MASTER_MODE_SELECT: Đợi Bus I2C về chế độ rảnh.
+  + I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED: Đợi xác nhận của Slave với yêu cầu ghi của Master.
+  + I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED: Đợi xác nhận của Slave với yêu cầu đọc của Master.
+  + I2C_EVENT_MASTER_BYTE_TRANSMITTED: Đợi truyền xong 1 byte data từ Master.
+  + I2C_EVENT_MASTER_BYTE_RECEIVED: Đợi Master nhận đủ 1 byte data.
+
+#### d. Hàm truyền và hàm nhận
+Qúa trình truyền nhận:
+- Bắt đầu truyền nhận, bộ I2C sẽ tạo 1 tín hiệu start. Đợi tín hiệu báo Bus sẵn sàng.
+- Gửi 7 bit địa chỉ để xác định slave. Đợi Slave xác nhân.
+- Gửi/đọc các byte data. Đợi truyền xong.
+- Sau đó kết thúc bằng tín hiệu Stop
+
+
+
+- Qúa trinh Start và gửi 7 bit:
+
+```c
+I2C_GenerateSTART(I2C1, ENABLE);
+ //Waiting for flag
+ while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_MODE_SELECT));
+I2C_Send7bitAddress(I2C1, 0x44, I2C_Direction_Transmitter);
+//And check the transmitting
+while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED));
+```
+
+- Hàm truyền:
+```c
+void Send_I2C_Data(uint8_t data)
+{
+	I2C_SendData(I2C1, data);
+	// wait for the data trasnmitted flag
+	while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED));
+}
+```
+
+- Hàm nhận:
+```c
+uint8_t Read_I2C_Data(){
+	
+	uint8_t data = I2C_ReceiveData(I2C1);
+	while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_RECEIVED));
+	return data;
+}
+
+```
+
+- Tín hiệu Stop:
+```c
+I2C_GenerateSTOP(I2C1, ENABLE);
+```
