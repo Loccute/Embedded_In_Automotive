@@ -1141,5 +1141,101 @@ uint8_t Parity_Check(uint8_t data, Parity_Mode Mode){
 ```
 
 ### 2. UART Hardware
+STM32F1 có 3 khối USART: USART1 ở APB2 và USART2, USART3 ở APB1.
+#### a. Cấu hình GPIO cho UART Hardware
+- Ta định nghĩa các chân mang chức năng giao tiếp UART mà được STM32 cấu hình trước:
+```c
+#define TX_Pin		GPIO_Pin_9
+#define RX_Pin		GPIO_Pin_10
+#define UART_GPIO	GPIOA
+```
+
+- Cấu hình GPIO:
+```c
+void GPIO_Config(){
+	// Cấp clock cho GPIOA
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	
+	GPIO_InitTypeDef GPIOInitStruct;
+	GPIOInitStruct.GPIO_Pin = RX_Pin;
+	GPIOInitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIOInitStruct.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+	GPIO_Init(UART_GPIO, &GPIOInitStruct);
+	
+	GPIOInitStruct.GPIO_Pin = TX_Pin;
+	GPIOInitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIOInitStruct.GPIO_Mode = GPIO_Mode_AF_PP;
+	GPIO_Init(UART_GPIO, &GPIOInitStruct);
+}
+```
+
+#### b. Cấu hình UART
+Tương tự các ngoại vi khác, các tham số UART được cấu hình trong struct USART_InitTypeDef:
+- `USART_Mode`: Cấu hình chế độ hoạt động cho UART:
+  + `USART_Mode_Tx`: Cấu hình truyền.
+  + `USART_Mode_Rx`: Cấu hình nhận.
+  + Có thể cấu hình cả 2 cùng lúc (song công).
+- `USART_BaudRate`: Cấu hình tốc độ baudrate cho uart.
+- `USART_HardwareFlowControl`: Cấu hình chế độ bắt tay cho uart.
+- `USART_WordLength`: Cấu hình số bit mỗi lần truyền.
+- `USART_StopBits`: Cấu hình số lượng stopbits.
+- `USART_Parity`: cấu hình bit kiểm tra chẳn, lẻ.
+
+Cấu hình UART:
+```c
+void UART_Config(){
+	USART_InitTypeDef USART_InitStruct;
+	//USART
+	USART_InitStruct.USART_BaudRate = 9600;
+	USART_InitStruct.USART_WordLength = USART_WordLength_8b; // truyền 8 bit dữ liệu
+	USART_InitStruct.USART_StopBits = USART_StopBits_1; // 1 bit stop
+	USART_InitStruct.USART_Parity = USART_Parity_No; // không dùng Parity bit
+	USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None; // Không sử dụng chế độ bắt tay cho uart.
+	USART_InitStruct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx; // chế độ song công
+
+	USART_Init(USART1, &USARTInitStruct);
+	USART_Cmd(USART1,ENABLE);
+}
+```
+
+#### c. Các hàm thông dụng, hàm truyền và hàm nhận
+- Hàm truyền nhận
+  + Hàm USART_SendData(USART_TypeDef* USARTx, uint16_t Data), truyền data từ UARTx. Data này đã được thêm bit chẵn/lẻ tùy cấu hình.
+  + Hàm USART_ReceiveData(USART_TypeDef* USARTx), nhận data từ UARTx.
+- Hàm kiểm tra cờ:
+  + Hàm USART_GetFlagStatus(USART_TypeDef* USARTx, uint16_t USART_FLAG) trả về trạng thái cờ USART_FLAG tương ứng:
+    * USART_FLAG_TXE:	Cờ báo thanh ghi chứa dữ liệu truyền đi (DR) đang trống.
+    * USART_FLAG_RXNE:  Cờ báo thanh ghi chứa dữ liệu nhận (DR) đã có dữ liệu.
+    * USART_FLAG_IDLE: 	Cờ báo đường truyền đang ở chế độ rảnh.
+    * USART_FLAG_PE: 	Cờ báo lỗi Parity.
+    * USART_FLAG_TC: 	Cờ báo đã hoàn thành quá trình truyền dữ liệu
+- Hàm truyền: Bắt đầu truyền/nhận, UART xóa hết data trong thanh ghi DR để đảm bảo data đúng.
+Gửi đi từng byte data. Sau đó đợi cờ TXE bật lên.
+```c
+void USART1_TransmitByte(uint8_t byte) {
+    // Wait until the transmit data register is empty (TXE flag is set)
+    while (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET);
+
+    // Transmit the byte
+    USART_SendData(USART1, byte);
+
+    // Wait until transmission is complete (TC flag is set)
+    while (USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET);
+}
+
+```
+- Hàm nhận: Đọc data từ bộ USART, chờ cờ RNXE bật lên. Đối với mảng dữ liệu, lặp lại quá trình cho từng byte.
+```c
+uint8_t USART1_ReceiveByte(void){
+	uint8_t temp = 0x00;
+    // Wait until data is received (RXNE flag is set)
+    while (USART_GetFlagStatus(USART1, USART_FLAG_RXNE) == RESET);
+
+    // Read the received data
+	temp = USART_ReceiveData(USART1);
+	return temp;
+}
+
+```
 
   </details>
