@@ -930,3 +930,216 @@ uint8_t Read_I2C_Data(){
 ```c
 I2C_GenerateSTOP(I2C1, ENABLE);
 ```
+  </details>
+
+ <details>
+	<summary><strong>BÀI 7: GIAO TIẾP UART</strong></summary>
+
+## Bài 7: Giao tiếp UART
+### 1. UART Software
+#### a. Cấu hình GPIO cho UART Software
+UART sử dụng 2 chân để giao tiếp, đó là Tx(Transmit) và Rx(Receive).
+![image](https://github.com/user-attachments/assets/3329f813-562c-48c0-95f8-9982fac8e369)
+
+Định nghĩa các chân giao tiếp:
+```c
+#define TX_Pin		GPIO_Pin_9
+#define RX_Pin		GPIO_Pin_10
+#define UART_GPIO 	GPIOA
+
+```
+
+Cấu hình GPIO cho UART: Tx là chân truyền nên được cấu hình OUTPUT, còn Rx là chân nhận nên cấu hình INPUT.
+```c
+void GPIO_Config(){
+	// Cấp clock cho GPIOA
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	GPIO_InitTypeDef GPIOInitStruct;
+	// Cấu hình chân Rx là Input Floating
+	GPIOInitStruct.GPIO_Pin = RX_Pin;
+	GPIOInitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIOInitStruct.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+	GPIO_Init(UART_GPIO, &GPIOInitStruct);
+
+	// Cấu hình chân Tx là Output PushPull
+	GPIOInitStruct.GPIO_Pin = TX_Pin;
+	GPIOInitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIOInitStruct.GPIO_Mode = GPIO_Mode_Out_PP;
+	GPIO_Init(UART_GPIO, &GPIOInitStruct);
+}
+
+```
+
+#### b. Thiết lập Baurate
+Tốc độ Baurate được xác định bởi thời gian truyền đi 1 bit. Ta dùng tốc độ phổ thông là 9600, tương ứng thời gian truyền mỗi bit là 105us
+
+Định nghĩa thời gian truyền dữ liệu
+```c 
+#define BRateTime 105
+```
+
+#### c. Cấu hình Uart
+Ở chế độ nghỉ (không truyền), đường Tx được giữ ở mức cao. 
+
+Hàm UART_Config dùng để thiết lập chế độ nghỉ cho đường truyền:
+```c
+void UARTSoftware_Init(){
+GPIO_SetBits(UART_GPIO, TX_Pin);
+	delay_us(1);
+}
+```
+
+#### d. Hàm truyền và hàm nhận
+- Hàm truyền:
+  ![image](https://github.com/user-attachments/assets/0d2c4600-fa92-4f3e-af0c-438014826714)
+
+Hàm truyền truyền lần lượt 8 bit trong byte dữ liệu, sau khi tín hiệu start được gửi đi. Quy trình như sau:
+
+  + Tạo tín hiệu START, delay 1 khoảng thời gian
+    * Truyền mỗi bit dữ liệu, truyền mỗi bit trong 1 period time.
+    * Dịch 1 bit.
+  +  Tạo tín hiệu STOP, delay tương ứng với số bit stop.
+
+```c
+void UARTSoftware_Transmitt(const char DataValue) {
+	// Start bit
+	GPIO_ResetBits(GPIOA, TX_Pin);
+	delay_us(BRateTime);
+	
+	// Truyền các bit dữ liệu (LSB trước)
+	for (int i = 0; i < 8; i++) {
+	if (DataValue & (1 << i)) {
+	    GPIO_SetBits(GPIOA, TX_Pin);
+	} else {
+	    GPIO_ResetBits(GPIOA, TX_Pin);
+	}
+	delay_us(BRateTime);
+	}
+		
+	// Stop bit
+	GPIO_SetBits(GPIOA, TX_Pin);
+	delay_us(BRateTime);
+}
+```
+
+- Hàm nhận:
+![image](https://github.com/user-attachments/assets/f43c0476-2cd6-4217-b271-a7308c3cd591)
+
+Hàm nhận sẽ nhận lần lượt 8 bit:
+  + Chờ tín hiệu START từ thiết bị gửi.
+  + Delay 1.5 preriod time.
+    * Đọc Data chân Rx và ghi vào biến.
+    * Dịch 1 bit.
+    * Delay 1 period time.
+  + Delay 0.5 preriod time và chờ STOP bit.
+
+```c
+unsigned char UARTSoftware_Receive() {
+    unsigned char DataValue = 0;
+
+    // Ðợi Start bit
+    while (GPIO_ReadInputDataBit(GPIOA, RX_Pin) == 1);
+
+    // Đợt 1.5 period time
+    delay_us(BRateTime + BRateTime / 2);
+
+    // Ðọc lần lượt các bit dữ liệu trên chân Rx (LSB trước)
+    for (int i = 0; i < 8; i++) {
+				
+        if (GPIO_ReadInputDataBit(GPIOA, RX_Pin)) {
+            DataValue |= (1 << i);
+        }
+	delay_us(BRateTime); // Đợi 1 Period time
+    }
+
+    // Ðợi Stop bit
+    delay_us(BRateTime / 2);
+
+    return DataValue;
+}
+
+```
+
+#### e. Parity bit
+Là bit chẵn/lẻ được thêm vào cuối Data để kiểm tra dữ liệu truyền đi có bị lỗi bit hay không.
+
+Cấu hình các chế độ gồm là bit chẵn/lẻ hay không dùng parity bit:
+```c
+typedef enum{
+	Parity_Mode_NONE,
+	Parity_Mode_ODD,
+	Parity_Mode_EVENT
+}Parity_Mode;
+
+```
+
+Tùy vào cấu hình parity là chẵn hay lẻ mà thiết bị truyền có thể thêm bit parity là 0 hoặc 1.
+
+Phía nhận cấu hình parity giống như phía truyền, sau khi nhận đủ các bit sẽ kiểm tra parity có đúng hay không.
+
+- Hàm tạo Parity bit
+```c
+uint16_t Parity_Generate(uint8_t data, Parity_Mode Mode){
+	uint8_t count = 0;
+	uint8_t data1 = data;
+	for(int i = 0; i < 8; i++){
+		if(data1 & 0x01){
+			count++;
+		}
+		data1 >>= 1;
+	}
+	switch(Mode){
+		case Parity_Mode_NONE:
+			return data; 
+			break;
+		case Parity_Mode_ODD:
+			if(count % 2){
+				return ((data << 1) | 1);
+			} else {
+				return (data<<1);
+			}
+			break;
+		case Parity_Mode_EVEN:
+			if(!(count % 2)){
+				return ((data << 1) | 1);
+			} else {
+				return (data << 1);
+			}
+			break;
+		default:
+			return data;
+			break;
+	}
+}
+```
+
+- Hàm kiểm tra Parity:
+```c
+uint8_t Parity_Check(uint8_t data, Parity_Mode Mode){
+	uint8_t count = 0;
+	for(int i = 0; i < 8; i++){
+		if(data & 0x01){
+			count++;
+		}
+		data >>= 1;
+	}
+	switch(Mode){
+		case Parity_Mode_NONE:
+			return 1; 
+			break;
+		case Parity_Mode_ODD:
+			return (count % 2);
+			break;
+		case Parity_Mode_EVEN:
+			return (!(count % 2));
+			break;
+		default:
+			return 0;
+			break;
+	}
+}
+```
+
+### 2. UART Hardware
+
+  </details>
