@@ -1239,3 +1239,133 @@ uint8_t USART1_ReceiveByte(void){
 ```
 
   </details>
+
+ <details>
+	<summary><strong>BÀI 8: NGẮT NGOÀI - NGẮT TIMER - NGẮT TRUYỀN THÔNG</strong></summary>
+
+## Bài 8: Ngắt ngoài - Ngắt timer - Ngắt truyền thông
+### 1. Ngắt ngoài
+
+#### a. Tổng quan:
+External interrupt (EXTI) hay còn gọi là ngắt ngoài là 1 sự kiện ngắt xảy ra khi có tín hiệu can thiệp từ bên ngoài như từ phần cứng, người sử dụng hay ngoại vi,...
+
+- Sơ đồ các khối điều khiển ngắt ngoài:
+![image](https://github.com/user-attachments/assets/66caa90a-25a9-4125-a87a-245d1bb2a995)
+
+- Ngắt ngoài gồm 16 line như hình minh họa dưới:
+![image](https://github.com/user-attachments/assets/248e2114-fabf-4a45-ba94-44e4c7a093a2)
+
+- Ví dụ:
+  + LineX sẽ chung cho tất cả các chân PYX ở tất cả các Port, với Y là tên Port (PortA, B,...) và X là số chân (0, 1, 2, ...).
+  + LineX nếu ta đã chọn chân PAX (Port A) làm chân ngắt thì tất cả các chân X ở Port khác không được khai báo làm chân ngắt ngoài nữa.
+
+Các Line ngắt sẽ được phân bố vào các Vector ngắt tương ứng như sau:
+![image](https://github.com/user-attachments/assets/f76f3b18-5b95-487a-a03b-f8c6009aa599)
+
+#### b. Độ ưu tiên ngắt:
+
+Có 2 loại độ ưu tiên ngắt trên STM32 là **Preemption Priorities** và **Sub Priorities**, ta có thứ tự ưu tiên thực hiện ngắt như sau:
+
+- Mặc định thì ngắt nào có **Preemption Priority** cao hơn thì thực hiện trước.
+- 2 ngắt có cùng **Preemption Priority** thì ngắt nào có **Sub Priority** cao hơn thì thực hiện trước.
+- Nếu 2 ngắt đều có cùng **Preemption Priority** và **Sub Priority** thì ngắt nào đến trước thực hiện trước.
+
+#### c. Cấu hình ngắt ngoài:
+Để cấu hình ngắt ngoài, ta phải cấu hình 3 thứ: cấu hình chân GPIO với Port và Pin tương ứng với Line ngắt muốn thực hiện, cấu hình EXTI và cấu hình vector ngắt (NVIC).
+
+- Cấu hình GPIO: chân ngắt ngoài được cấu hình là Input, chế độ PullUp hay PullDown tùy vào cạnh ngắt.
+
+Gỉa sử ta cấu hình chân PA0 làm chân ngắt ở chế độ PullDown như sau:
+```c
+void GPIO_Config(){
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE); // Cấp clock cho GPIOA
+	GPIO_InitTypeDef GPIOInitStruct;
+	
+	GPIOInitStruct.GPIO_Mode = GPIO_Mode_IPU; 	// cấu hình chế độ Input_PullDown
+	GPIOInitStruct.GPIO_Pin = GPIO_Pin_0;
+	GPIOInitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOA, &GPIOInitStruct);
+}
+
+```
+
+- Cấu hình EXTI:
+Ta dùng hàm `GPIO_EXTILineConfig(uint8_t GPIO_PortSource, uint8_t GPIO_PinSource)` để cấu hình chân sử dụng chế độ ngắt ngoài
+  + `GPIO_PortSource`: chọn Port sử dụng làm nguồn cho ngắt ngoài.
+  + `GPIO_PinSource`: chọn Pin cấu hình.
+
+Các tham số cấu hình ngắt ngoài trong struct `EXTI_InitTypeDef` gồm:
+  + `EXTI_Line`: chọn Line ngắt.
+  + `EXTI_Mode`: chọn Mode ngắt là Interrupt (thực hiện ngắt) hay Even (không ngắt).
+  + `EXTI_Trigger`: Cấu hình cạnh ngắt.
+  + `EXTI_LineCmd`: cho phép ngắt ở Line cấu hình hay không (ENABLE hoặc DISABLE).
+
+Hàm cấu hình EXTI:
+```c
+void EXTI_Config(){
+	EXTI_InitTypeDef EXTIInitStruct;
+
+	EXTIInitStruct.EXTI_Line = EXTI_Line0; // Cấu hình ngắt Line 0
+	EXTIInitStruct.EXTI_Mode = EXTI_Mode_Interrupt; // Chế độ ngắt
+	EXTIInitStruct.EXTI_Trigger = EXTI_Trigger_Falling; // Cấu hình ngắt khi thay đổi tín hiệu điện áp từ mức 1 xuống mức 0
+	EXTIInitStruct.EXTI_LineCmd = ENABLE; // Bật ngắt
+	
+	EXTI_Init(&EXTIInitStruct);
+}
+```
+
+- Cấu hình NVIC (Nested Vector Interrupt Controller): là các vector ngắt chịu trách nhiệm quản lý và sử lý các ngắt khác nhau. Có thể sử lý ngắt từ các nguồn khác nhau, ưu tiên ngắt và sử lý các ngắt lồng nhau. Các tham số được cấu hình trong struct `NVIC_InitTypeDef` bao gồm:
+  + `NVIC_IRQChannel`: Xác định mã kênh ngắt cần cấu hình. 
+  + `NVIC_IRQChannelPreemptionPriority`: Xác định mức độ ưu tiên chính (Preemption Priority) cho kênh ngắt.
+  + `NVIC_IRQChannelSubPriority`: Xác định mức độ ưu tiên phụ (Sub Priority) cho kênh ngắt.
+  + `NVIC_IRQChannelCmd`: Cho phép ngắt (ENABLE hay DISABLE).
+
+Priority Group xác định cách phân chia bit giữa Preemption Priority và Subpriority. Sử dụng hàm NVIC_PriorityGroupConfig(uint32_t PriorityGroup) để chọn priority group cho NVIC.
+
+Ta có bảng mức độ ưu tiên ngắt NVIC:
+![image](https://github.com/user-attachments/assets/cc07c7ad-acd7-4e6e-bbcd-577ffc262208)
+
+Hàm cấu hình NVIC:
+```c
+void NVIC_Config()
+{
+	NVIC_InitTypeDef NVIC_InitStruct;
+
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+	
+	NVIC_InitStruct.NVIC_IRQChannel = EXTI0_IRQn; // Cấu hình ngắt Line 0 
+	NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 0x00; // 2 bit pre-emption priority
+	NVIC_InitStruct.NVIC_IRQChannelSubPriority = 0x00; // 2 bit sub priority
+	NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE; // Bật ngắt
+	NVIC_Init(&NVIC_InitStruct);
+}
+```
+
+#### d. Hàm phục vụ ngắt ngoài:
+Ngắt trên từng line có hàm phục vụ riêng, được đăng kí và có tên cố định là `EXTIx_IRQHandler()` với x là line ngắt tương ứng. Hàm này sẽ được gọi khi có ngắt tương ứng trên Line xảy ra.
+
+- Hàm `EXTI_GetITStatus(EXTI_Linex)`: kiểm tra cờ ngắt ở lineX tương ứng.
+- Hàm `EXTI_ClearITPendingBit(EXTI_Linex)`: xóa cờ ngắt ở lineX tương ứng.
+
+Trong hàm phục vụ ngắt ngoài, ta thực hiện:
++ Kiểm tra ngắt từ line nào,có đúng line cần thực thi không ?
++ Thực hiện các lệnh và hàm.
++ Xóa cờ ngắt ở line.
+
+```c
+void EXTI0_IRQHandler()
+{
+	// Kiểm tra xem có ngắt ở Line 0 hay không
+	if(EXTI_GetITStatus(EXTI_Line0) != RESET)
+	{
+		// Thực hiện xử lý ngắt
+	}
+	// Xóa cờ ngắt ở Line 0
+	EXTI_ClearITPendingBit(EXTI_Line0);
+}
+```
+
+### 2. Ngắt Timer
+### 3. Ngắt truyền thông
+
+ </details>
