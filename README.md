@@ -1273,15 +1273,16 @@ Có 2 loại độ ưu tiên ngắt trên STM32 là **Preemption Priorities** v�
 #### c. Cấu hình ngắt ngoài:
 Để cấu hình ngắt ngoài, ta phải cấu hình 3 thứ: cấu hình chân GPIO với Port và Pin tương ứng với Line ngắt muốn thực hiện, cấu hình EXTI và cấu hình vector ngắt (NVIC).
 
-- Cấu hình GPIO: chân ngắt ngoài được cấu hình là Input, chế độ PullUp hay PullDown tùy vào cạnh ngắt.
+- Cấu hình GPIO: chân ngắt ngoài được cấu hình là Input, chế độ PullUp hay PullDown tùy vào cạnh ngắt. Ngoài ra, để sử dụng được ngắt ngoài, ngoài bật clock cho GPIO tương ứng cần bật thêm clock cho AFIO.
 
 Gỉa sử ta cấu hình chân PA0 làm chân ngắt ở chế độ PullDown như sau:
 ```c
 void GPIO_Config(){
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE); // Cấp clock cho GPIOA
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE); // Cấp clock cho AFIO
 	GPIO_InitTypeDef GPIOInitStruct;
 	
-	GPIOInitStruct.GPIO_Mode = GPIO_Mode_IPU; 	// cấu hình chế độ Input_PullDown
+	GPIOInitStruct.GPIO_Mode = GPIO_Mode_IPU; 	// cấu hình chế độ Input_PullUp
 	GPIOInitStruct.GPIO_Pin = GPIO_Pin_0;
 	GPIOInitStruct.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOA, &GPIOInitStruct);
@@ -1303,6 +1304,7 @@ Các tham số cấu hình ngắt ngoài trong struct `EXTI_InitTypeDef` gồm:
 Hàm cấu hình EXTI:
 ```c
 void EXTI_Config(){
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
 	EXTI_InitTypeDef EXTIInitStruct;
 
 	EXTIInitStruct.EXTI_Line = EXTI_Line0; // Cấu hình ngắt Line 0
